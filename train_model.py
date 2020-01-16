@@ -38,25 +38,26 @@ VALIDATION_EVERY_STEP = 10000 # 10000
 
 load_net = False
 load_fileName = "checkpoint-300000.data"
-saves_path = "../checkpoint/5"
+saves_path = "../checkpoint/6"
 
 if __name__ == "__main__":
 
     device = torch.device("cuda")
 
-    # create the training and val set
-    train_set, val_set = data.read_bundle_csv(
-        path="../data/5",
-        sep='\t', filter_data=True, fix_open_price=False, percentage=0.8)
+    # create the training, val set, trend_set, status_dicts
+    train_set, val_set, extra_set = data.read_bundle_csv(
+        path="../data/6",
+        sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
+        trend_names=['bollinger_bands', 'MACD'], status_names=['RSI'])
 
-    env = environ.StocksEnv(train_set, bars_count=BARS_COUNT, reset_on_close=True, state_1d=False, volumes=True)
+    env = environ.StocksEnv(train_set, extra_set, bars_count=BARS_COUNT, reset_on_close=True, volumes=False, train_mode=True)
     env = wrappers.TimeLimit(env, max_episode_steps=1000)
-    env_val = environ.StocksEnv(val_set, bars_count=BARS_COUNT, reset_on_close=True, state_1d=False, volumes=True)
+    env_val = environ.StocksEnv(val_set, extra_set, bars_count=BARS_COUNT, reset_on_close=True, volumes=False, train_mode=False)
     # env_val = wrappers.TimeLimit(env_val, max_episode_steps=1000)
 
     # create neural network
-    net = models.SimpleLSTM(input_size=5, n_hidden=512, n_layers=2, drop_prob=0.5, actions_n=3,
-                 train_on_gpu=True, batch_first=True).to(device)
+    net = models.SimpleLSTM(input_size=env.trend_shape[1], n_hidden=512, n_layers=2, drop_prob=0.5, actions_n=3,
+                 train_on_gpu=True, batch_first=True, status_size=env.status_shape[1]).to(device)
     # load the network
     if load_net is True:
         with open(os.path.join(saves_path, load_fileName), "rb") as f:

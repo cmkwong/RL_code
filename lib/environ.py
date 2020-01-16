@@ -31,63 +31,122 @@ class State:
         self.reward_on_close = reward_on_close
         self.volumes = volumes
 
-    def reset(self, prices, offset):
-        assert isinstance(prices, data.Prices)
-        assert offset >= self.bars_count-1
+    def reset(self, data, extra_set, offset):
+        assert isinstance(data, dict)
+        assert offset >= self.bars_count - 1
         self.have_position = False
         self.open_price = 0.0
-        self._prices = prices
+        self._data = data
+        self._extra_set = extra_set     # empty if {}
+        self.extra_indicator = False
         self._offset = offset
 
+    def normalised_trend_data(self):
+        start = self._offset - self.bars_count + 1
+        end = self._offset + 1
+        # normalise the data from an array
+        x = 0
+        y = 0
+        target_data = np.ndarray(shape=(self.bars_count, self.extra_trend_size), dtype=np.float64)
+        for indicator in self._extra_set['trend'].values():
+            y = y + indicator.encoded_size
+            target_data[:, x:y] = indicator.normalise(start, end)
+            x = y
+            y = x
+        return target_data
+
+    def normalised_status_data(self):
+        start = self._offset - self.bars_count + 1
+        end = self._offset + 1
+        target_data = np.ndarray(shape=(1, self.extra_status_size), dtype=np.float64)
+        # normalise the data from an array
+        x = 0
+        y = 0
+        for indicator in self._extra_set['status'].values():
+            y = y + indicator.encoded_size
+            target_data[0, x:y] = indicator.normalise(start, end)
+            x = y
+            y = x
+        return target_data
+
     @property
-    def shape(self):
+    def shape_data(self):
         # bars * (h, l, c, bc_o, v) + position_flag + rel_profit (since open)
+        self.extra_trend_size = 0
+        if len(self._extra_set) is not 0:
+            if len(self._extra_set['trend']) is not 0:
+                for trend_name in list(self._extra_set['trend'].keys()):
+                    self.extra_trend_size += self._extra_set['trend'][trend_name].encoded_size
         if self.volumes:
-            return (self.bars_count, 5)
+            self.base_trend_size = 5
+            return (self.bars_count, self.base_trend_size + self.extra_trend_size)
         else:
-            return (self.bars_count, 4)
+            self.base_trend_size = 4
+            return (self.bars_count, self.base_trend_size + self.extra_trend_size)
+
+    @property
+    def shape_status(self):
+        self.base_status_size = 2
+        self.extra_status_size = 0
+        if len(self._extra_set) is not 0:
+            if len(self._extra_set['status']) is not 0:
+                for status_name in list(self._extra_set['status'].keys()):
+                    self.extra_status_size += self._extra_set['status'][status_name].encoded_size
+        return (1, self.base_status_size + self.extra_status_size)
 
     def encode(self): # p.336
         """
         Convert current state into numpy array.
         """
         encoded_data = collections.namedtuple('encoded_data', field_names=['data', 'status'])
-        res = np.ndarray(shape=self.shape, dtype=np.float32)
-        status = np.ndarray(shape=(1,2), dtype=np.float32)
+        data = np.ndarray(shape=self.shape_data, dtype=np.float64)
+        status = np.ndarray(shape=self.shape_status, dtype=np.float64)
         shift_r = 0
-        begin_volume = self._prices.volume[self._offset - self.bars_count + 1]
+        # data stacking
+        bese_volume = self._data['volume'][self._offset - self.bars_count + 1]
         for bar_idx in range(-self.bars_count+1, 1):
             shift_c = 0
-            res[shift_r, shift_c] = (self._prices.high[self._offset + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
-                                    self._prices.open[self._offset + bar_idx]
+            data[shift_r, shift_c] = (self._data['high'][self._offset + bar_idx] - self._data['open'][self._offset + bar_idx]) / \
+                                    self._data['open'][self._offset + bar_idx]
             shift_c += 1
-            res[shift_r, shift_c] = (self._prices.low[self._offset + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
-                                    self._prices.open[self._offset + bar_idx]
+            data[shift_r, shift_c] = (self._data['low'][self._offset + bar_idx] - self._data['open'][self._offset + bar_idx]) / \
+                                    self._data['open'][self._offset + bar_idx]
             shift_c += 1
-            res[shift_r, shift_c] = (self._prices.close[self._offset + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
-                                    self._prices.open[self._offset + bar_idx]
+            data[shift_r, shift_c] = (self._data['close'][self._offset + bar_idx] - self._data['open'][self._offset + bar_idx]) / \
+                                    self._data['open'][self._offset + bar_idx]
             shift_c += 1
-            res[shift_r, shift_c] = (self._prices.close[(self._offset - 1) + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
-                                    self._prices.open[self._offset + bar_idx]
+            data[shift_r, shift_c] = (self._data['close'][(self._offset - 1) + bar_idx] - self._data['open'][self._offset + bar_idx]) / \
+                                    self._data['open'][self._offset + bar_idx]
             shift_c += 1
             if self.volumes:
-                res[shift_r, shift_c] = self._prices.volume[self._offset + bar_idx] / begin_volume
+                data[shift_r, shift_c] = self._data['volume'][self._offset + bar_idx] / bese_volume
                 shift_c += 1
             shift_r += 1
+        # status stacking
         status[0,0] = float(self.have_position)
         if not self.have_position:
             status[0,1] = 0.0
         else:
-            status[0,1] = (self._prices.close[self._offset] - self.open_price) / self.open_price
-        return encoded_data(data=res, status=status)
+            status[0,1] = (self._data['close'][self._offset] - self.open_price) / self.open_price
+
+        # extra_data
+        normal_array = np.ndarray(shape=(self.bars_count, self.extra_trend_size), dtype=np.float64)
+        if len(self._extra_set) is not 0:
+            if len(self._extra_set['trend']) is not 0:
+                normal_array = self.normalised_trend_data()
+                data[:, self.base_trend_size:] = normal_array
+            if len(self._extra_set['status']) is not 0:
+                normal_array = self.normalised_status_data()
+                status[0, self.base_status_size:] = normal_array
+        return encoded_data(data=data, status=status)
 
 
     def _cur_close(self):
         """
         Calculate real close price for the current bar
         """
-        open = self._prices.open[self._offset]
-        rel_close = self._prices.close[self._offset]
+        open = self._data['open'][self._offset]
+        rel_close = self._data['close'][self._offset]
         return open * (1.0 + rel_close)
 
     def step(self, action):
@@ -101,7 +160,7 @@ class State:
         reward = 0.0
         done = False
         # don't need self._cur_close() because it is not relative price
-        close = self._prices.close[self._offset]
+        close = self._data['close'][self._offset]
         if action == Actions.Buy and not self.have_position:
             self.have_position = True
             self.open_price = close
@@ -116,8 +175,8 @@ class State:
 
         self._offset += 1
         prev_close = close
-        close = self._prices.close[self._offset]
-        done |= self._offset >= self._prices.close.shape[0]-1 # done if reached limit
+        close = self._data['close'][self._offset]
+        done |= self._offset >= self._data['close'].shape[0]-1 # done if reached limit
 
         if self.have_position and not self.reward_on_close:
             reward += 100.0 * (close - prev_close) / prev_close
@@ -125,63 +184,62 @@ class State:
         return reward, done
 
 
-class State1D(State):
-    """
-    State with shape suitable for 1D convolution
-    """
-    @property
-    def shape(self):
-        if self.volumes:
-            return (6, self.bars_count)
-        else:
-            return (5, self.bars_count)
-
-    def encode(self): # p.336
-        res = np.zeros(shape=self.shape, dtype=np.float32)
-        ofs = self.bars_count-1
-        res[0] = self._prices.high[self._offset-ofs:self._offset+1]
-        res[1] = self._prices.low[self._offset-ofs:self._offset+1]
-        res[2] = self._prices.close[self._offset-ofs:self._offset+1]
-        if self.volumes:
-            res[3] = self._prices.volume[self._offset-ofs:self._offset+1]
-            dst = 4
-        else:
-            dst = 3
-        if self.have_position:
-            res[dst] = 1.0
-            res[dst+1] = (self._cur_close() - self.open_price) / self.open_price
-        return res
-
-
 class StocksEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, prices, bars_count=DEFAULT_BARS_COUNT,
-                 commission=DEFAULT_COMMISSION_PERC, reset_on_close=True, state_1d=False,
-                 random_ofs_on_reset=True, reward_on_close=False, volumes=False):
-        assert isinstance(prices, dict)
-        self._prices = prices
-        if state_1d:
-            self._state = State1D(bars_count, commission, reset_on_close, reward_on_close=reward_on_close,
-                                  volumes=volumes)
-        else:
-            self._state = State(bars_count, commission, reset_on_close, reward_on_close=reward_on_close,
-                                volumes=volumes)
-        self.action_space = gym.spaces.Discrete(n=len(Actions))
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=self._state.shape, dtype=np.float32)
+    def __init__(self, data, extra_set, bars_count=DEFAULT_BARS_COUNT,
+                 commission=DEFAULT_COMMISSION_PERC, reset_on_close=True,
+                 random_ofs_on_reset=True, reward_on_close=False, volumes=False, train_mode=True):
+        assert isinstance(data, dict)
+        self.universe_data = data
+        self.universe_extra_set = extra_set # empty dict if there is no extra data
+        self._state = State(bars_count, commission, reset_on_close, reward_on_close=reward_on_close, volumes=volumes)
         self.random_ofs_on_reset = random_ofs_on_reset
+        self.train_mode = train_mode
         self.seed()
+        # get the shape first for creating the net
+        self.get_data_shape()
+        self.action_space = gym.spaces.Discrete(n=len(Actions))
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=self.trend_shape, dtype=np.float64)
+
+    def get_data_shape(self):
+        self.reset()
+        self.trend_shape = self._state.shape_data
+        self.status_shape = self._state.shape_status
+
+    def offset_modify(self, prices, extra_set, train_mode):
+
+        available_start = 0
+        if len(extra_set) is not 0:
+            # append the length, cal the min_length
+            invalid_length = []
+            if len(extra_set['trend']) is not 0:
+                for key in list(extra_set['trend'].keys()):
+                    invalid_length.append(extra_set['trend'][key].invalid_len)
+            if len(extra_set['status']) is not 0:
+                for key in list(extra_set['status'].keys()):
+                    invalid_length.append(extra_set['status'][key].invalid_len)
+            available_start = np.max(invalid_length)
+
+        bars = self._state.bars_count
+        if self.random_ofs_on_reset:
+            if train_mode:
+                offset = self.np_random.choice(range(available_start, prices['high'].shape[0] - bars * 10)) + bars
+            else:
+                offset = self.np_random.choice(prices['high'].shape[0] - bars * 10) + bars
+        else:
+            offset = bars + available_start
+        return offset
 
     def reset(self):
         # make selection of the instrument and it's offset. Then reset the state
-        self._instrument = self.np_random.choice(list(self._prices.keys()))
-        prices = self._prices[self._instrument]
-        bars = self._state.bars_count
-        if self.random_ofs_on_reset:
-            offset = self.np_random.choice(prices.high.shape[0]-bars*10) + bars
-        else:
-            offset = bars
-        self._state.reset(prices, offset)
+        self._instrument = self.np_random.choice(list(self.universe_data.keys()))
+        data = self.universe_data[self._instrument]
+        extra_set_ = {}
+        if len(self.universe_extra_set) is not 0:
+            extra_set_ = self.universe_extra_set[self._instrument]
+        offset = self.offset_modify(data, extra_set_, self.train_mode) # train_mode=False, random offset is different
+        self._state.reset(data, extra_set_, offset)
         return self._state.encode()
 
     def step(self, action_idx):
@@ -201,8 +259,3 @@ class StocksEnv(gym.Env):
         self.np_random, seed1 = seeding.np_random(seed)
         seed2 = seeding.hash_seed(seed1 + 1) % 2 ** 31
         return [seed1, seed2]
-
-    @classmethod
-    def from_dir(cls, data_dir, **kwargs):
-        prices = {file: data.load_relative(file) for file in data.price_files(data_dir)}
-        return StocksEnv(prices, **kwargs)
