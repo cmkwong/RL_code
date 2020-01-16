@@ -201,11 +201,11 @@ class StocksEnv(gym.Env):
         # get the shape first for creating the net
         self.get_data_shape()
         self.action_space = gym.spaces.Discrete(n=len(Actions))
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=self.trend_shape, dtype=np.float64)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=self.data_shape, dtype=np.float64)
 
     def get_data_shape(self):
         self.reset()
-        self.trend_shape = self._state.shape_data
+        self.data_shape = self._state.shape_data
         self.status_shape = self._state.shape_status
 
     def offset_modify(self, prices, extra_set, train_mode):

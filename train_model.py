@@ -9,7 +9,7 @@ import torch.optim as optim
 
 from lib import environ, data, models, common, validation
 
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 BATCH_SIZE = 32
 BARS_COUNT = 40
@@ -35,21 +35,26 @@ EPSILON_STEPS = 1000000
 
 CHECKPOINT_EVERY_STEP = 50000
 VALIDATION_EVERY_STEP = 30000 # 30000
+WEIGHT_VISUALIZE_STEP = 10000 # 30000
+GRAPH_VISUALIZE_STEP = 5000
 
 loss_v = None
 load_net = False
-load_fileName = "checkpoint-2000000.data"
-saves_path = "C:/Users/user/python_jupyter/book_Hands_On_Reinforcement_Learning_Pytorch/cmk_chapter8/9_LSTM_currency_USDJPY_lr/checkpoint"
+load_fileName = "checkpoint-1700000.data"
+saves_path = "../checkpoint/10"
 
 if __name__ == "__main__":
 
     device = torch.device("cuda")
 
+    # define the writer
+    writer = SummaryWriter(comment="CMK Test")
+
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
-        path="C:/Users/user/python_jupyter/book_Hands_On_Reinforcement_Learning_Pytorch/cmk_chapter8/9_LSTM_currency_USDJPY_lr/data",
+        path="../data/10",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
-        trend_names=['bollinger_bands', 'MACD'], status_names=['RSI'])
+        trend_names=['bollinger_bands', 'MACD', 'RSI'], status_names=[])
 
     env = environ.StocksEnv(train_set, extra_set, bars_count=BARS_COUNT, reset_on_close=True, random_ofs_on_reset=True, volumes=False, train_mode=True)
     env = wrappers.TimeLimit(env, max_episode_steps=1000)
@@ -57,17 +62,18 @@ if __name__ == "__main__":
     # env_val = wrappers.TimeLimit(env_val, max_episode_steps=1000)
 
     # create neural network
-    net = models.SimpleLSTM(input_size=env.trend_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
+    net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
                  train_on_gpu=True, batch_first=True, status_size=env.status_shape[1]).to(device)
     # load the network
     if load_net is True:
         with open(os.path.join(saves_path, load_fileName), "rb") as f:
             checkpoint = torch.load(f)
-        net = models.SimpleLSTM(input_size=env.trend_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
+        net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
                                 train_on_gpu=True, batch_first=True, status_size=env.status_shape[1]).to(device)
         net.load_state_dict(checkpoint['state_dict'])
 
     tgt_net = ptan.agent.TargetNet(net)
+    net.writer = writer
 
     # create buffer
     selector = ptan.actions.EpsilonGreedyActionSelector(EPSILON_START)
@@ -89,13 +95,12 @@ if __name__ == "__main__":
     eval_states = None
     best_mean_val = None
 
-    writer = SummaryWriter(comment="0005_testing")
+    # common.output_graph(net, env, writer)
     loss_tracker = common.lossTracker(writer, group_losses=100)
     with common.RewardTracker(writer, np.inf, group_rewards=100) as reward_tracker:
         while True:
             step_idx += 1
             net_processor.populate_mode(batch_size=1)
-            #net.init_hidden(1)
             buffer.populate(1)
             selector.epsilon = max(EPSILON_STOP, EPSILON_START - step_idx*1.25 / EPSILON_STEPS)
 
@@ -110,10 +115,6 @@ if __name__ == "__main__":
 
             # init the hidden both in network and tgt network
             net_processor.train_mode(batch_size=BATCH_SIZE)
-            #net.train()
-            #net.zero_grad()
-            #net.init_hidden(BATCH_SIZE)
-            #tgt_net.target_model.init_hidden(BATCH_SIZE)
             loss_v = common.calc_loss(batch, net, tgt_net.target_model, GAMMA ** REWARD_STEPS, device=device)
             loss_v.backward()
             optimizer.step()
@@ -130,13 +131,16 @@ if __name__ == "__main__":
                     "action_n": env.action_space.n,
                     "state_dict": net.state_dict()
                 }
-                with open(os.path.join(saves_path,"checkpoint_v2-%d.data" % step_idx), "wb") as f:
+                with open(os.path.join(saves_path,"checkpoint-%d.data" % step_idx), "wb") as f:
                     torch.save(checkpoint, f)
+
+            if step_idx % GRAPH_VISUALIZE_STEP == 0:
+                net.addGraph = True
 
             if step_idx % VALIDATION_EVERY_STEP == 0:
                 net_processor.eval_mode(batch_size=1)
-                #net.eval()
-                #net.init_hidden(1)
                 res = validation.validation_run(env_val, net, device=device)
                 for key, val in res.items():
                     writer.add_scalar(key + "_val", val, step_idx)
+
+            #if step_idx % WEIGHT_VISUALIZE_STEP == 0:
