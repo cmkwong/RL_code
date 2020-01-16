@@ -56,7 +56,7 @@ class SimpleFFDQN(nn.Module):
         return val + adv - adv.mean(dim=1, keepdim=True)
 
 class SimpleLSTM(nn.Module):
-    def __init__(self, input_size=5, n_hidden=512, n_layers=2, drop_prob=0.5, actions_n=3,
+    def __init__(self, status_size, input_size=5, n_hidden=512, n_layers=2, drop_prob=0.5, actions_n=3,
                  train_on_gpu=True, batch_first=True):
         super(SimpleLSTM, self).__init__()
         self.input_size = input_size
@@ -69,12 +69,13 @@ class SimpleLSTM(nn.Module):
             self.device = torch.device("cuda")
         self.batch_first = batch_first
         self.batch_size = None
+        self.status_size = status_size
 
         self.lstm = nn.LSTM(self.input_size, self.n_hidden, self.n_layers, dropout=self.drop_prob, batch_first=self.batch_first)
 
         # for state value
         self.fc_val = nn.Sequential(
-            nn.Linear(self.n_hidden + 2, 1024),
+            nn.Linear(self.n_hidden + self.status_size, 1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
             nn.ReLU(),
@@ -84,7 +85,7 @@ class SimpleLSTM(nn.Module):
         )
         # for action value
         self.fc_adv = nn.Sequential(
-            nn.Linear(self.n_hidden + 2, 1024),
+            nn.Linear(self.n_hidden + self.status_size, 1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
             nn.ReLU(),
@@ -95,20 +96,22 @@ class SimpleLSTM(nn.Module):
 
         self.hidden = None
 
-    def preprocessor(self, x):
+    def preprocessor(self, x): # dtype = torch.float32 must be set
+        data = None
+        status = None
         if len(x) == 1:
-            data = torch.tensor(np.expand_dims(x[0].data, 0)).to(self.device)   # data.shape = (1, 20, 5)
-            status = torch.tensor(x[0].status).to(self.device)                  # status.shape = (1,2)
+            data = torch.tensor(np.expand_dims(x[0].data, 0), dtype=torch.float32).to(self.device)   # data.shape = (1, 20, 5)
+            status = torch.tensor(x[0].status, dtype=torch.float32).to(self.device)                  # status.shape = (1,2)
         elif len(x) > 1:
             data_shape = np.insert(x[0].data.shape, 0, self.batch_size)       # data.shape = (batch_size, 20, 5)
-            data_arr = np.ndarray(shape=data_shape, dtype=np.float32)
+            data_arr = np.ndarray(shape=data_shape, dtype=np.float64)
             status_shape = np.array([self.batch_size, x[0].status.shape[1]])  # status.shape = (batch_size,2)
-            status_arr = np.ndarray(shape=status_shape, dtype=np.float32)
+            status_arr = np.ndarray(shape=status_shape, dtype=np.float64)
             for idx, exp in enumerate(x):
                 data_arr[idx, :, :] = np.expand_dims(x[idx].data, 0)
                 status_arr[idx, :] = x[idx].status
-                data = torch.tensor(data_arr).to(self.device)
-                status = torch.tensor(status_arr).to(self.device)
+                data = torch.tensor(data_arr, dtype=torch.float32).to(self.device)
+                status = torch.tensor(status_arr, dtype=torch.float32).to(self.device)
         return data, status
 
     def forward(self, x):
