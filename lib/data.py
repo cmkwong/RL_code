@@ -19,14 +19,14 @@ class csv_reader:
         self.total_count_out = 0
         self.total_count_fixed = 0
 
-    def read_csv(self, file_name, sep=',', filter_data=True, fix_open_price=False):
+    def read_csv(self, file_name, sep='\t', filter_data=True, fix_open_price=False):
         print("Reading", file_name)
         with open(file_name, 'rt', encoding='utf-8') as fd:
             reader = csv.reader(fd, delimiter=sep)
             h = next(reader)
-            if 'Open' not in h and sep == ',':
+            if '<OPEN>' not in h and sep == ',':
                 return self.read_csv(file_name, ';')
-            indices = [h.index(s) for s in ('Open', 'High', 'Low', 'Close', 'Volume')]
+            indices = [h.index(s) for s in ('<OPEN>', '<HIGH>', '<LOW>', '<CLOSE>', '<TICKVOL>')]
             o, h, l, c, v = [], [], [], [], []
             count_out = 0
             count_filter = 0
@@ -66,7 +66,6 @@ class csv_reader:
                       low=np.array(l, dtype=np.float32),
                       close=np.array(c, dtype=np.float32),
                       volume=np.array(v, dtype=np.float32))
-
 
 def prices_to_relative(prices):
     """
