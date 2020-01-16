@@ -12,7 +12,7 @@ from lib import environ, data, models, common, validation
 from tensorboardX import SummaryWriter
 
 BATCH_SIZE = 32
-BARS_COUNT = 20
+BARS_COUNT = 40
 TARGET_NET_SYNC = 1000
 TRAINING_DATA = ""
 VAL_DATA = ""
@@ -34,11 +34,11 @@ EPSILON_STOP = 0.1
 EPSILON_STEPS = 1000000
 
 CHECKPOINT_EVERY_STEP = 50000
-VALIDATION_EVERY_STEP = 10000 # 10000
+VALIDATION_EVERY_STEP = 30000 # 10000
 
 load_net = False
 load_fileName = "checkpoint-300000.data"
-saves_path = "../checkpoint/6"
+saves_path = "../checkpoint/7"
 
 if __name__ == "__main__":
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
-        path="../data/6",
+        path="../data/7",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
         trend_names=['bollinger_bands', 'MACD'], status_names=['RSI'])
 
