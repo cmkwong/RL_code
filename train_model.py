@@ -38,7 +38,7 @@ VALIDATION_EVERY_STEP = 30000 # 30000
 
 loss_v = None
 load_net = True
-load_fileName = "checkpoint-950000.data"
+load_fileName = "checkpoint-1700000.data"
 saves_path = "../checkpoint/10"
 
 if __name__ == "__main__":
