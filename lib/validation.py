@@ -26,8 +26,6 @@ def validation_run(env, net, episodes=100, device="cpu", epsilon=0.02, comission
             out_v = net(obs_v)
 
             action_idx = out_v.max(dim=1)[1].item()
-            if np.random.random() < epsilon:
-                action_idx = env.action_space.sample()
             action = environ.Actions(action_idx)
 
             close_price = env._state._data['close'][env._state._offset]
