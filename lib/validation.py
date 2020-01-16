@@ -22,7 +22,7 @@ def validation_run(env, net, episodes=100, device="cpu", epsilon=0.02, comission
         episode_steps = 0
 
         while True:
-            obs_v = torch.tensor([obs]).to(device)
+            obs_v = [obs]
             out_v = net(obs_v)
 
             action_idx = out_v.max(dim=1)[1].item()
@@ -30,7 +30,7 @@ def validation_run(env, net, episodes=100, device="cpu", epsilon=0.02, comission
                 action_idx = env.action_space.sample()
             action = environ.Actions(action_idx)
 
-            close_price = env._state._cur_close()
+            close_price = env._state._prices.close[env._state._offset]
 
             if action == environ.Actions.Buy and position is None:
                 position = close_price

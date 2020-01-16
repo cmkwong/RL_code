@@ -55,6 +55,90 @@ class SimpleFFDQN(nn.Module):
         adv = self.fc_adv(x)
         return val + adv - adv.mean(dim=1, keepdim=True)
 
+class SimpleLSTM(nn.Module):
+    def __init__(self, input_size=5, n_hidden=512, n_layers=2, drop_prob=0.5, actions_n=3,
+                 train_on_gpu=True, batch_first=True):
+        super(SimpleLSTM, self).__init__()
+        self.input_size = input_size
+        self.n_hidden = n_hidden
+        self.n_layers = n_layers
+        self.drop_prob = drop_prob
+        self.actions_n = actions_n
+        self.train_on_gpu = train_on_gpu
+        if self.train_on_gpu:
+            self.device = torch.device("cuda")
+        self.batch_first = batch_first
+        self.batch_size = None
+
+        self.lstm = nn.LSTM(self.input_size, self.n_hidden, self.n_layers, dropout=self.drop_prob, batch_first=self.batch_first)
+
+        # for state value
+        self.fc_val = nn.Sequential(
+            nn.Linear(self.n_hidden + 2, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
+        # for action value
+        self.fc_adv = nn.Sequential(
+            nn.Linear(self.n_hidden + 2, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, self.actions_n)
+        )
+
+        self.hidden = None
+
+    def preprocessor(self, x):
+        if len(x) == 1:
+            data = torch.tensor(np.expand_dims(x[0].data, 0)).to(self.device)   # data.shape = (1, 20, 5)
+            status = torch.tensor(x[0].status).to(self.device)                  # status.shape = (1,2)
+        elif len(x) > 1:
+            data_shape = np.insert(x[0].data.shape, 0, self.batch_size)       # data.shape = (batch_size, 20, 5)
+            data_arr = np.ndarray(shape=data_shape, dtype=np.float32)
+            status_shape = np.array([self.batch_size, x[0].status.shape[1]])  # status.shape = (batch_size,2)
+            status_arr = np.ndarray(shape=status_shape, dtype=np.float32)
+            for idx, exp in enumerate(x):
+                data_arr[idx, :, :] = np.expand_dims(x[idx].data, 0)
+                status_arr[idx, :] = x[idx].status
+                data = torch.tensor(data_arr).to(self.device)
+                status = torch.tensor(status_arr).to(self.device)
+        return data, status
+
+    def forward(self, x):
+        data, status = self.preprocessor(x)
+        self.hidden = tuple([each.data for each in self.hidden])
+        self.lstm.flatten_parameters()
+        r_output, self.hidden = self.lstm(data, self.hidden)
+        # only need the last cell output
+        output = r_output[:,-1,:]
+        output = output.view(self.batch_size, -1)
+        output = torch.cat([output, status], dim=1) # shape = o(batch_size, 512) + status(batch_size, 2) = (batch_size,514)
+
+        val = self.fc_val(output)
+        adv = self.fc_adv(output)
+
+        return val + adv - adv.mean(dim=1, keepdim=True)
+
+    def init_hidden(self, batch_size):
+        ''' Initializes hidden state '''
+        # Create two new tensors with sizes n_layers x batch_size x n_hidden,
+        # initialized to zero, for hidden state and cell state of LSTM
+        self.batch_size = batch_size
+        weight = next(self.parameters()).data
+
+        if (self.train_on_gpu):
+            self.hidden = (weight.new(self.n_layers, batch_size, self.n_hidden).zero_().cuda(),
+                      weight.new(self.n_layers, batch_size, self.n_hidden).zero_().cuda())
+        else:
+            self.hidden = (weight.new(self.n_layers, batch_size, self.n_hidden).zero_(),
+                      weight.new(self.n_layers, batch_size, self.n_hidden).zero_())
 
 class DQNConv1D(nn.Module):
     def __init__(self, shape, actions_n):

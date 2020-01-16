@@ -1,6 +1,7 @@
 import sys
 import time
 import numpy as np
+import re
 
 import torch
 import torch.nn as nn
@@ -72,7 +73,7 @@ def calc_values_of_states(states, net, device="cpu"):
 def unpack_batch(batch):
     states, actions, rewards, dones, last_states = [], [], [], [], []
     for exp in batch:
-        state = np.array(exp.state, copy=False)
+        state = exp.state
         states.append(state)
         actions.append(exp.action)
         rewards.append(exp.reward)
@@ -80,16 +81,16 @@ def unpack_batch(batch):
         if exp.last_state is None:
             last_states.append(state)       # the result will be masked anyway
         else:
-            last_states.append(np.array(exp.last_state, copy=False))
-    return np.array(states, copy=False), np.array(actions), np.array(rewards, dtype=np.float32), \
-           np.array(dones, dtype=np.uint8), np.array(last_states, copy=False)
+            last_states.append(exp.last_state)
+    return states, np.array(actions), np.array(rewards, dtype=np.float32), \
+           np.array(dones, dtype=np.uint8), last_states
 
 
 def calc_loss(batch, net, tgt_net, gamma, device="cpu"):
     states, actions, rewards, dones, next_states = unpack_batch(batch)
 
-    states_v = torch.tensor(states).to(device)
-    next_states_v = torch.tensor(next_states).to(device)
+    states_v = states
+    next_states_v = next_states
     actions_v = torch.tensor(actions).to(device)
     rewards_v = torch.tensor(rewards).to(device)
     done_mask = torch.BoolTensor(dones).to(device)
@@ -101,3 +102,10 @@ def calc_loss(batch, net, tgt_net, gamma, device="cpu"):
 
     expected_state_action_values = next_state_values.detach() * gamma + rewards_v
     return nn.MSELoss()(state_action_values, expected_state_action_values)
+
+def find_stepidx(text, open_str, end_str):
+    regex_open = re.compile(open_str)
+    regex_end = re.compile(end_str)
+    matches_open = regex_open.search(text)
+    matches_end = regex_end.search(text)
+    return np.int(text[matches_open.span()[1]:matches_end.span()[0]])
