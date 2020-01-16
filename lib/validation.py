@@ -28,7 +28,7 @@ def validation_run(env, net, episodes=100, device="cpu", epsilon=0.02, comission
             action_idx = out_v.max(dim=1)[1].item()
             action = environ.Actions(action_idx)
 
-            close_price = env._state._data['close'][env._state._offset]
+            close_price = env._state._data['close'][env._state._offset] # base_offset = 8308
 
             if action == environ.Actions.Buy and position is None:
                 position = close_price

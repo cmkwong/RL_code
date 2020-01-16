@@ -110,6 +110,8 @@ def addition_indicators(prices, trend_names, status_names):
                 trend_indicators[trend_name] = indicators.Bollinger_Bands(prices, period=20, upperB_p=2, lowerB_p=2)
             if trend_name == 'MACD':
                 trend_indicators[trend_name] = indicators.MACD(prices, period=(12,26), ma_p=9)
+            if trend_name == 'RSI':
+                trend_indicators[trend_name] = indicators.RSI(prices, period=14)
     if status_names is not None:
         for status_name in status_names:
             if status_name == 'RSI':

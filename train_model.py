@@ -37,9 +37,9 @@ CHECKPOINT_EVERY_STEP = 50000
 VALIDATION_EVERY_STEP = 30000 # 30000
 
 loss_v = None
-load_net = False
-load_fileName = "checkpoint-2000000.data"
-saves_path = "C:/Users/user/python_jupyter/book_Hands_On_Reinforcement_Learning_Pytorch/cmk_chapter8/9_LSTM_currency_USDJPY_lr/checkpoint"
+load_net = True
+load_fileName = "checkpoint-950000.data"
+saves_path = "../checkpoint/10"
 
 if __name__ == "__main__":
 
@@ -47,9 +47,9 @@ if __name__ == "__main__":
 
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
-        path="C:/Users/user/python_jupyter/book_Hands_On_Reinforcement_Learning_Pytorch/cmk_chapter8/9_LSTM_currency_USDJPY_lr/data",
+        path="../data/10",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
-        trend_names=['bollinger_bands', 'MACD'], status_names=['RSI'])
+        trend_names=['bollinger_bands', 'MACD', 'RSI'], status_names=[])
 
     env = environ.StocksEnv(train_set, extra_set, bars_count=BARS_COUNT, reset_on_close=True, random_ofs_on_reset=True, volumes=False, train_mode=True)
     env = wrappers.TimeLimit(env, max_episode_steps=1000)
@@ -57,13 +57,13 @@ if __name__ == "__main__":
     # env_val = wrappers.TimeLimit(env_val, max_episode_steps=1000)
 
     # create neural network
-    net = models.SimpleLSTM(input_size=env.trend_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
+    net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
                  train_on_gpu=True, batch_first=True, status_size=env.status_shape[1]).to(device)
     # load the network
     if load_net is True:
         with open(os.path.join(saves_path, load_fileName), "rb") as f:
             checkpoint = torch.load(f)
-        net = models.SimpleLSTM(input_size=env.trend_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
+        net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
                                 train_on_gpu=True, batch_first=True, status_size=env.status_shape[1]).to(device)
         net.load_state_dict(checkpoint['state_dict'])
 
@@ -130,7 +130,7 @@ if __name__ == "__main__":
                     "action_n": env.action_space.n,
                     "state_dict": net.state_dict()
                 }
-                with open(os.path.join(saves_path,"checkpoint_v2-%d.data" % step_idx), "wb") as f:
+                with open(os.path.join(saves_path,"checkpoint-%d.data" % step_idx), "wb") as f:
                     torch.save(checkpoint, f)
 
             if step_idx % VALIDATION_EVERY_STEP == 0:

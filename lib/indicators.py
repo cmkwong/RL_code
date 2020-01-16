@@ -168,6 +168,6 @@ class RSI:
             start = start + self.cutoff
             end = end + self.cutoff
         # assert(isinstance(data_array, np.ndarray))
-        target_data = np.ndarray(shape=((end-start), self.encoded_size),dtype=np.float64)
-        target_data = self.rsi_value[end-1] / 100
+        # target_data = np.ndarray(shape=((end-start), self.encoded_size),dtype=np.float64)
+        target_data = self.rsi_value[start:end] / 100
         return target_data.reshape(-1,self.encoded_size)
