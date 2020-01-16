@@ -8,10 +8,10 @@ import collections
 Prices = collections.namedtuple('Prices', field_names=['open', 'high', 'low', 'close', 'volume'])
 
 def float_available(f):
-    if f != "null":
-        return float(f)
-    else:
+    if f == "null" or f == '1':
         return float(0)
+    else:
+        return float(f)
 
 class csv_reader:
     def __init__(self):

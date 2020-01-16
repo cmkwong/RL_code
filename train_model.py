@@ -36,9 +36,9 @@ EPSILON_STEPS = 1000000
 CHECKPOINT_EVERY_STEP = 50000
 VALIDATION_EVERY_STEP = 10000 # 10000
 
-load_net = True
-load_fileName = "checkpoint-1150000.data"
-saves_path = "../checkpoint/4"
+load_net = False
+load_fileName = "checkpoint-300000.data"
+saves_path = "../checkpoint/5"
 
 if __name__ == "__main__":
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     # create the training and val set
     train_set, val_set = data.read_bundle_csv(
-        path="../data/4",
+        path="../data/5",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8)
 
     env = environ.StocksEnv(train_set, bars_count=BARS_COUNT, reset_on_close=True, state_1d=False, volumes=True)
