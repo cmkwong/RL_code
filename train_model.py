@@ -38,8 +38,8 @@ VALIDATION_EVERY_STEP = 30000 # 30000
 
 loss_v = None
 load_net = True
-load_fileName = "checkpoint-950000.data"
-saves_path = "C:/Users/user/python_jupyter/book_Hands_On_Reinforcement_Learning_Pytorch/cmk_chapter8/10_LSTM_currency_USDJPY_RSI/checkpoint"
+load_fileName = "checkpoint-1700000.data"
+saves_path = "C:/Users/user/github/RL_Stock/checkpoint"
 
 if __name__ == "__main__":
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
-        path="C:/Users/user/python_jupyter/book_Hands_On_Reinforcement_Learning_Pytorch/cmk_chapter8/10_LSTM_currency_USDJPY_RSI/data",
+        path="C:/Users/user/github/RL_Stock/data",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
         trend_names=['bollinger_bands', 'MACD', 'RSI'], status_names=[])
 
