@@ -132,6 +132,11 @@ def data_regularize(prices, spliter, trend_indicators, status_indicators, percen
         required_data = status_indicators[key].getData()
         prices.update(required_data)
     train_set, test_set = spliter.split_data(prices, percentage=percentage)
+    # update the cutoff offset for each indicators
+    for key in list(trend_indicators.keys()):
+        trend_indicators[key].cutoff = spliter.offset
+    for key in list(status_indicators.keys()):
+        status_indicators[key].cutoff = spliter.offset
     return train_set, test_set
 
 def read_bundle_csv(path, sep=',', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=False, trend_names=[], status_names=[]):
@@ -142,7 +147,7 @@ def read_bundle_csv(path, sep=',', filter_data=True, fix_open_price=False, perce
     extra_set = {}
     file_list = os.listdir(path)
     for file_name in file_list:
-        indicator_dicts = {}
+        indicator_dicts = {} # extra_set = {"0005.HK": {"trend", "status"}, "0011.HK": {"trend", "status"}, ...}
         required_path = path + "/" + file_name
         prices = reader.read_csv(required_path, sep=sep, filter_data=filter_data, fix_open_price=fix_open_price)
         if extra_indicator:

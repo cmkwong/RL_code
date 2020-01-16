@@ -10,7 +10,7 @@ class Bollinger_Bands:
         self.size = 2
         self.encoded_size = 1
         self.invalid_len = self.period - 1
-        self.offset = None
+        self.cutoff = None
 
     def cal_data(self):
         # close price
@@ -27,7 +27,10 @@ class Bollinger_Bands:
     def getData(self):
         return {'upperBand': self.upperBand, 'lowerBand': self.lowerBand}
 
-    def normalise(self, start, end):
+    def normalise(self, start, end, train_mode):
+        if train_mode is False:
+            start = start + self.cutoff
+            end = end + self.cutoff
         # assert(isinstance(data_array, np.ndarray))
         target_data = (self.target_price['close'][start:end] - self.lowerBand[start:end]) / \
                       (self.upperBand[start:end] - self.lowerBand[start:end])
@@ -38,10 +41,10 @@ class MACD:
         self.target_price = target_price
         self.period = period
         self.ma_p = ma_p
-        self.offset = None
         self.size = 2
         self.encoded_size = 2
         self.invalid_len = self.period[1] + self.ma_p - 2
+        self.cutoff = None
 
     def cal_data(self):
         assert (self.period[1] > self.period[0])
@@ -97,7 +100,10 @@ class MACD:
     def getData(self):
         return {'MACD_fast': self.MACD_fast, 'MACD_slow': self.MACD_slow}
 
-    def normalise(self, start, end):
+    def normalise(self, start, end, train_mode):
+        if train_mode is False:
+            start = start + self.cutoff
+            end = end + self.cutoff
         # assert(isinstance(data_array, np.ndarray))
         target_data = np.ndarray(shape=((end - start), self.encoded_size), dtype=np.float64)
         target_data[:, 0] = self.MACD_fast_n[start:end]
@@ -111,7 +117,7 @@ class RSI:
         self.size = 1
         self.encoded_size = 1
         self.invalid_len = self.period
-        self.offset = None
+        self.cutoff = None
 
     def cal_data(self):
         rsi = {}
@@ -157,7 +163,10 @@ class RSI:
     def getData(self):
         return {'rsi': self.rsi_value}
 
-    def normalise(self, start, end):
+    def normalise(self, start, end, train_mode):
+        if train_mode is False:
+            start = start + self.cutoff
+            end = end + self.cutoff
         # assert(isinstance(data_array, np.ndarray))
         target_data = np.ndarray(shape=((end-start), self.encoded_size),dtype=np.float64)
         target_data = self.rsi_value[end-1] / 100

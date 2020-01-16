@@ -59,6 +59,33 @@ class RewardTracker:
             return True
         return False
 
+class lossTracker:
+    def __init__(self, writer, group_losses=1):
+        self.writer = writer
+        self.loss_buf = []
+        self.total_loss = []
+        self.steps_buf = []
+        self.group_losses = group_losses
+        self.capacity = group_losses*10
+
+    def loss(self, loss, frame):
+        assert (isinstance(loss, np.float))
+        self.loss_buf.append(loss)
+        if len(self.loss_buf) < self.group_losses:
+            return False
+        mean_loss = np.mean(self.loss_buf)
+        self.loss_buf.clear()
+        self.total_loss.append(mean_loss)
+        movingAverage_loss = np.mean(self.total_loss[-100:])
+        if len(self.total_loss) > self.capacity:
+            self.total_loss = self.total_loss[1:]
+
+        if frame % 20000 == 0:
+            print("The mean loss is %.2f and the current loss is %.2f" %(
+                movingAverage_loss, mean_loss
+            ))
+        self.writer.add_scalar("loss_100", movingAverage_loss, frame)
+        self.writer.add_scalar("loss", mean_loss, frame)
 
 def calc_values_of_states(states, net, device="cpu"):
     mean_vals = []
@@ -109,3 +136,26 @@ def find_stepidx(text, open_str, end_str):
     matches_open = regex_open.search(text)
     matches_end = regex_end.search(text)
     return np.int(text[matches_open.span()[1]:matches_end.span()[0]])
+
+class netPreprocessor:
+    def __init__(self, net, tgt_net):
+        self.net = net
+        self.tgt_net = tgt_net
+
+    def train_mode(self, batch_size):
+        self.net.train()
+        self.net.zero_grad()
+        self.net.init_hidden(batch_size)
+
+        self.tgt_net.eval()
+        self.tgt_net.init_hidden(batch_size)
+
+    def eval_mode(self, batch_size):
+        self.net.eval()
+        self.net.init_hidden(batch_size)
+
+    def populate_mode(self, batch_size):
+        self.net.eval()
+        self.net.init_hidden(batch_size)
+
+
