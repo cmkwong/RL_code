@@ -71,6 +71,8 @@ class SimpleLSTM(nn.Module):
         self.batch_first = batch_first
         self.batch_size = None
         self.status_size = status_size
+        self.writer = None
+        self.addGraph = False
 
         self.lstm = nn.LSTM(self.input_size, self.n_hidden, self.n_layers, dropout=self.rnn_drop_prob, batch_first=self.batch_first)
 
@@ -148,6 +150,16 @@ class SimpleLSTM(nn.Module):
         val = self.fc_val(output)
         adv = self.fc_adv(output)
 
+        # add graph
+        if self.addGraph:
+            self.hidden = tuple([each.data for each in self.hidden])
+            self.lstm.flatten_parameters()
+            self.writer.add_graph(self.lstm, (data, self.hidden))
+            self.writer.add_graph(self.fc_val, output)
+            self.writer.add_graph(self.fc_adv, output)
+
+            self.addGraph = False
+
         return val + adv - adv.mean(dim=1, keepdim=True)
 
     def init_hidden(self, batch_size):
@@ -163,6 +175,7 @@ class SimpleLSTM(nn.Module):
         else:
             self.hidden = (weight.new(self.n_layers, batch_size, self.n_hidden).zero_(),
                       weight.new(self.n_layers, batch_size, self.n_hidden).zero_())
+
 
 class DQNConv1D(nn.Module):
     def __init__(self, shape, actions_n):
