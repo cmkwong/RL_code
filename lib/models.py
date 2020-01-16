@@ -56,13 +56,14 @@ class SimpleFFDQN(nn.Module):
         return val + adv - adv.mean(dim=1, keepdim=True)
 
 class SimpleLSTM(nn.Module):
-    def __init__(self, status_size, input_size=5, n_hidden=512, n_layers=2, drop_prob=0.5, actions_n=3,
+    def __init__(self, status_size, input_size=5, n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.3, actions_n=3,
                  train_on_gpu=True, batch_first=True):
         super(SimpleLSTM, self).__init__()
         self.input_size = input_size
         self.n_hidden = n_hidden
         self.n_layers = n_layers
-        self.drop_prob = drop_prob
+        self.rnn_drop_prob = rnn_drop_prob
+        self.fc_drop_prob = fc_drop_prob
         self.actions_n = actions_n
         self.train_on_gpu = train_on_gpu
         if self.train_on_gpu:
@@ -71,18 +72,22 @@ class SimpleLSTM(nn.Module):
         self.batch_size = None
         self.status_size = status_size
 
-        self.lstm = nn.LSTM(self.input_size, self.n_hidden, self.n_layers, dropout=self.drop_prob, batch_first=self.batch_first)
+        self.lstm = nn.LSTM(self.input_size, self.n_hidden, self.n_layers, dropout=self.rnn_drop_prob, batch_first=self.batch_first)
 
         # for state value
         self.fc_val = nn.Sequential(
             nn.Linear(self.n_hidden + self.status_size, 1024),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(1024, 1024),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(1024, 512),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(512, 512),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
@@ -93,12 +98,16 @@ class SimpleLSTM(nn.Module):
         self.fc_adv = nn.Sequential(
             nn.Linear(self.n_hidden + self.status_size, 1024),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(1024, 1024),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(1024, 512),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(512, 512),
             nn.ReLU(),
+            nn.Dropout(p=self.fc_drop_prob),
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 128),

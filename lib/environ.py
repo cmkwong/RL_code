@@ -18,7 +18,7 @@ class Actions(enum.Enum):
 
 
 class State:
-    def __init__(self, bars_count, commission_perc, reset_on_close, reward_on_close=True, volumes=True):
+    def __init__(self, bars_count, commission_perc, reset_on_close, reward_on_close=True, volumes=True, train_mode=True):
         assert isinstance(bars_count, int)
         assert bars_count > 0
         assert isinstance(commission_perc, float)
@@ -30,6 +30,7 @@ class State:
         self.reset_on_close = reset_on_close
         self.reward_on_close = reward_on_close
         self.volumes = volumes
+        self.train_mode = train_mode
 
     def reset(self, data, extra_set, offset):
         assert isinstance(data, dict)
@@ -50,7 +51,7 @@ class State:
         target_data = np.ndarray(shape=(self.bars_count, self.extra_trend_size), dtype=np.float64)
         for indicator in self._extra_set['trend'].values():
             y = y + indicator.encoded_size
-            target_data[:, x:y] = indicator.normalise(start, end)
+            target_data[:, x:y] = indicator.normalise(start, end, self.train_mode)
             x = y
             y = x
         return target_data
@@ -64,7 +65,7 @@ class State:
         y = 0
         for indicator in self._extra_set['status'].values():
             y = y + indicator.encoded_size
-            target_data[0, x:y] = indicator.normalise(start, end)
+            target_data[0, x:y] = indicator.normalise(start, end, self.train_mode)
             x = y
             y = x
         return target_data
@@ -104,7 +105,7 @@ class State:
         shift_r = 0
         # data stacking
         bese_volume = self._data['volume'][self._offset - self.bars_count + 1]
-        for bar_idx in range(-self.bars_count+1, 1):
+        for bar_idx in range(-self.bars_count + 1, 1):
             shift_c = 0
             data[shift_r, shift_c] = (self._data['high'][self._offset + bar_idx] - self._data['open'][self._offset + bar_idx]) / \
                                     self._data['open'][self._offset + bar_idx]
@@ -179,7 +180,7 @@ class State:
         done |= self._offset >= self._data['close'].shape[0]-1 # done if reached limit
 
         if self.have_position and not self.reward_on_close:
-            reward += 100.0 * (close - prev_close) / prev_close
+            reward += 100.0 * (close - prev_close) / prev_close # change with respect to last day close-price
 
         return reward, done
 
@@ -193,7 +194,7 @@ class StocksEnv(gym.Env):
         assert isinstance(data, dict)
         self.universe_data = data
         self.universe_extra_set = extra_set # empty dict if there is no extra data
-        self._state = State(bars_count, commission, reset_on_close, reward_on_close=reward_on_close, volumes=volumes)
+        self._state = State(bars_count, commission, reset_on_close, reward_on_close=reward_on_close, volumes=volumes, train_mode=train_mode)
         self.random_ofs_on_reset = random_ofs_on_reset
         self.train_mode = train_mode
         self.seed()
@@ -228,7 +229,10 @@ class StocksEnv(gym.Env):
             else:
                 offset = self.np_random.choice(prices['high'].shape[0] - bars * 10) + bars
         else:
-            offset = bars + available_start
+            if train_mode:
+                offset = bars + available_start
+            else:
+                offset = bars
         return offset
 
     def reset(self):
