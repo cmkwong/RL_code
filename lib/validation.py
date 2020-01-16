@@ -5,7 +5,7 @@ import torch
 from lib import environ
 
 
-def validation_run(env, net, episodes=1000, device="cpu", epsilon=0.02, comission=0.1):
+def validation_run(env, net, episodes=100, device="cpu", epsilon=0.02, comission=0.1):
     stats = {
         'episode_reward': [],
         'episode_steps': [],

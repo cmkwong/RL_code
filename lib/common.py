@@ -158,8 +158,4 @@ class netPreprocessor:
         self.net.eval()
         self.net.init_hidden(batch_size)
 
-def output_graph(net, env, writer):
-    dummy_obs = env.reset()
-    writer.add_graph(net, dummy_obs)
-
 
