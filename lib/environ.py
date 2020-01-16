@@ -3,10 +3,11 @@ import gym.spaces
 from gym.utils import seeding
 import enum
 import numpy as np
+import collections
 
 from . import data
 
-DEFAULT_BARS_COUNT = 10
+DEFAULT_BARS_COUNT = 20
 DEFAULT_COMMISSION_PERC = 0.1
 
 
@@ -40,37 +41,46 @@ class State:
 
     @property
     def shape(self):
-        # [h, l, c] * bars + position_flag + rel_profit (since open)
+        # bars * (h, l, c, bc_o, v) + position_flag + rel_profit (since open)
         if self.volumes:
-            return (4 * self.bars_count + 1 + 1, )
+            return (self.bars_count, 5)
         else:
-            return (3*self.bars_count + 1 + 1, )
+            return (self.bars_count, 4)
 
     def encode(self): # p.336
         """
         Convert current state into numpy array.
         """
+        encoded_data = collections.namedtuple('encoded_data', field_names=['data', 'status'])
         res = np.ndarray(shape=self.shape, dtype=np.float32)
-        shift = 0
+        status = np.ndarray(shape=(1,2), dtype=np.float32)
+        shift_r = 0
+        begin_volume = self._prices.volume[self._offset - self.bars_count + 1]
         for bar_idx in range(-self.bars_count+1, 1):
-            res[shift] = self._prices.high[self._offset + bar_idx]
-            shift += 1
-            res[shift] = self._prices.low[self._offset + bar_idx]
-            shift += 1
-            res[shift] = self._prices.close[self._offset + bar_idx]
-            shift += 1
+            shift_c = 0
+            res[shift_r, shift_c] = (self._prices.high[self._offset + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
+                                    self._prices.open[self._offset + bar_idx]
+            shift_c += 1
+            res[shift_r, shift_c] = (self._prices.low[self._offset + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
+                                    self._prices.open[self._offset + bar_idx]
+            shift_c += 1
+            res[shift_r, shift_c] = (self._prices.close[self._offset + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
+                                    self._prices.open[self._offset + bar_idx]
+            shift_c += 1
+            res[shift_r, shift_c] = (self._prices.close[(self._offset - 1) + bar_idx] - self._prices.open[self._offset + bar_idx]) / \
+                                    self._prices.open[self._offset + bar_idx]
+            shift_c += 1
             if self.volumes:
-                res[shift] = self._prices.volume[self._offset + bar_idx]
-                shift += 1
-        res[shift] = float(self.have_position)
-        shift += 1
+                res[shift_r, shift_c] = self._prices.volume[self._offset + bar_idx] / begin_volume
+                shift_c += 1
+            shift_r += 1
+        status[0,0] = float(self.have_position)
         if not self.have_position:
-            res[shift] = 0.0
+            status[0,1] = 0.0
         else:
-            res[shift] = (self._cur_close() - self.open_price) / self.open_price
+            status[0,1] = (self._prices.close[self._offset] - self.open_price) / self.open_price
+        return encoded_data(data=res, status=status)
 
-
-        return res
 
     def _cur_close(self):
         """
@@ -90,14 +100,15 @@ class State:
         assert isinstance(action, Actions)
         reward = 0.0
         done = False
-        close = self._cur_close()
+        # don't need self._cur_close() because it is not relative price
+        close = self._prices.close[self._offset]
         if action == Actions.Buy and not self.have_position:
             self.have_position = True
             self.open_price = close
             reward -= self.commission_perc
         elif action == Actions.Close and self.have_position:
             reward -= self.commission_perc
-            done |= self.reset_on_close
+            done |= self.reset_on_close                     # done if reset_on_close
             if self.reward_on_close:
                 reward += 100.0 * (close - self.open_price) / self.open_price
             self.have_position = False
@@ -105,8 +116,8 @@ class State:
 
         self._offset += 1
         prev_close = close
-        close = self._cur_close()
-        done |= self._offset >= self._prices.close.shape[0]-1
+        close = self._prices.close[self._offset]
+        done |= self._offset >= self._prices.close.shape[0]-1 # done if reached limit
 
         if self.have_position and not self.reward_on_close:
             reward += 100.0 * (close - prev_close) / prev_close

@@ -68,6 +68,7 @@ def prices_to_relative(prices):
     rh = (prices.high - prices.open) / prices.open
     rl = (prices.low - prices.open) / prices.open
     rc = (prices.close - prices.open) / prices.open
+    # rv = (prices.volume) / np.mean(prices.volume)
     return Prices(open=prices.open, high=rh, low=rl, close=rc, volume=prices.volume)
 
 def split_data(prices, percentage=0.8):
