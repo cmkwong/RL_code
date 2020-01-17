@@ -9,7 +9,7 @@ import torch.optim as optim
 
 from lib import environ, data, models, common, validation
 
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 
 BATCH_SIZE = 32
 BARS_COUNT = 40
@@ -35,20 +35,15 @@ EPSILON_STEPS = 1000000
 
 CHECKPOINT_EVERY_STEP = 50000
 VALIDATION_EVERY_STEP = 30000 # 30000
-WEIGHT_VISUALIZE_STEP = 10000 # 30000
-GRAPH_VISUALIZE_STEP = 5000
 
 loss_v = None
-load_net = False
+load_net = True
 load_fileName = "checkpoint-1700000.data"
 saves_path = "../checkpoint/10"
 
 if __name__ == "__main__":
 
     device = torch.device("cuda")
-
-    # define the writer
-    writer = SummaryWriter(comment="CMK Test")
 
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
@@ -73,7 +68,6 @@ if __name__ == "__main__":
         net.load_state_dict(checkpoint['state_dict'])
 
     tgt_net = ptan.agent.TargetNet(net)
-    net.writer = writer
 
     # create buffer
     selector = ptan.actions.EpsilonGreedyActionSelector(EPSILON_START)
@@ -95,12 +89,13 @@ if __name__ == "__main__":
     eval_states = None
     best_mean_val = None
 
-    # common.output_graph(net, env, writer)
+    writer = SummaryWriter(comment="0005_testing")
     loss_tracker = common.lossTracker(writer, group_losses=100)
     with common.RewardTracker(writer, np.inf, group_rewards=100) as reward_tracker:
         while True:
             step_idx += 1
             net_processor.populate_mode(batch_size=1)
+            #net.init_hidden(1)
             buffer.populate(1)
             selector.epsilon = max(EPSILON_STOP, EPSILON_START - step_idx*1.25 / EPSILON_STEPS)
 
@@ -115,6 +110,10 @@ if __name__ == "__main__":
 
             # init the hidden both in network and tgt network
             net_processor.train_mode(batch_size=BATCH_SIZE)
+            #net.train()
+            #net.zero_grad()
+            #net.init_hidden(BATCH_SIZE)
+            #tgt_net.target_model.init_hidden(BATCH_SIZE)
             loss_v = common.calc_loss(batch, net, tgt_net.target_model, GAMMA ** REWARD_STEPS, device=device)
             loss_v.backward()
             optimizer.step()
@@ -134,13 +133,10 @@ if __name__ == "__main__":
                 with open(os.path.join(saves_path,"checkpoint-%d.data" % step_idx), "wb") as f:
                     torch.save(checkpoint, f)
 
-            if step_idx % GRAPH_VISUALIZE_STEP == 0:
-                net.addGraph = True
-
             if step_idx % VALIDATION_EVERY_STEP == 0:
                 net_processor.eval_mode(batch_size=1)
+                #net.eval()
+                #net.init_hidden(1)
                 res = validation.validation_run(env_val, net, device=device)
                 for key, val in res.items():
                     writer.add_scalar(key + "_val", val, step_idx)
-
-            #if step_idx % WEIGHT_VISUALIZE_STEP == 0:
