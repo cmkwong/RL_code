@@ -9,7 +9,7 @@ import torch.optim as optim
 
 from lib import environ, data, models, common, validation
 
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 BATCH_SIZE = 32
 BARS_COUNT = 40
@@ -32,14 +32,16 @@ EVAL_EVERY_STEP = 1000
 EPSILON_START = 0.9
 EPSILON_STOP = 0.05
 EPSILON_STEPS = 1000000
+MAX_VALIDATION_EPISODES = 600
 
 CHECKPOINT_EVERY_STEP = 50000
 VALIDATION_EVERY_STEP = 30000 # 30000
+WEIGHT_VISUALIZE_STEP = 50000
 
 loss_v = None
-load_net = True
+load_net = False
 load_fileName = "checkpoint-1700000.data"
-saves_path = "../checkpoint/10"
+saves_path = "../checkpoint/11"
 
 if __name__ == "__main__":
 
@@ -47,7 +49,7 @@ if __name__ == "__main__":
 
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
-        path="../data/10",
+        path="../data/11",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
         trend_names=['bollinger_bands', 'MACD', 'RSI'], status_names=[])
 
@@ -95,7 +97,6 @@ if __name__ == "__main__":
         while True:
             step_idx += 1
             net_processor.populate_mode(batch_size=1)
-            #net.init_hidden(1)
             buffer.populate(1)
             selector.epsilon = max(EPSILON_STOP, EPSILON_START - step_idx*1.25 / EPSILON_STEPS)
 
@@ -110,10 +111,6 @@ if __name__ == "__main__":
 
             # init the hidden both in network and tgt network
             net_processor.train_mode(batch_size=BATCH_SIZE)
-            #net.train()
-            #net.zero_grad()
-            #net.init_hidden(BATCH_SIZE)
-            #tgt_net.target_model.init_hidden(BATCH_SIZE)
             loss_v = common.calc_loss(batch, net, tgt_net.target_model, GAMMA ** REWARD_STEPS, device=device)
             loss_v.backward()
             optimizer.step()
@@ -135,8 +132,13 @@ if __name__ == "__main__":
 
             if step_idx % VALIDATION_EVERY_STEP == 0:
                 net_processor.eval_mode(batch_size=1)
-                #net.eval()
-                #net.init_hidden(1)
-                res = validation.validation_run(env_val, net, device=device)
-                for key, val in res.items():
-                    writer.add_scalar(key + "_val", val, step_idx)
+                validation_episodes = min(np.int((1/1800)*step_idx + 100), MAX_VALIDATION_EPISODES)
+                writer.add_scalar("validation_episodes", validation_episodes, step_idx)
+
+                val_epsilon = max(0, EPSILON_START - step_idx * 1.25 / EPSILON_STEPS)
+                stats = validation.validation_run(env_val, net, episodes=validation_episodes, epsilon=val_epsilon)
+                common.valid_result_visualize(stats, writer, step_idx)
+
+            if step_idx % WEIGHT_VISUALIZE_STEP == 0:
+                net_processor.eval_mode(batch_size=1)
+                common.weight_visualize(net, writer)

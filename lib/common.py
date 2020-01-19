@@ -159,3 +159,24 @@ class netPreprocessor:
         self.net.init_hidden(batch_size)
 
 
+def weight_visualize(net, writer):
+    for name, param in net.named_parameters():
+        writer.add_histogram(name, param)
+
+def valid_result_visualize(stats=None, writer=None, step_idx=None):
+    # output the mean reward to the writer
+    for key, vals in stats.items():
+        if (len(stats[key]) > 0) and (np.mean(vals) != 0):
+            mean_value = np.mean(vals)
+            std_value = np.std(vals, ddof=1)
+            writer.add_scalar(key + "_val", mean_value, step_idx)
+            writer.add_scalar(key + "_std_val", std_value, step_idx)
+            if (key == 'order_profits') or (key == 'episode_reward'):
+                writer.add_histogram(key + "dist_val", np.array(vals))
+        else:
+            writer.add_scalar(key + "_val", 0, step_idx)
+            writer.add_scalar(key + "_std_val", 0, step_idx)
+            if (key == 'order_profits') or (key == 'episode_reward'):
+                writer.add_histogram(key + "_val", 0)
+
+    # output the reward distribution to the writer
