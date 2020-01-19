@@ -32,27 +32,24 @@ EVAL_EVERY_STEP = 1000
 EPSILON_START = 0.9
 EPSILON_STOP = 0.05
 EPSILON_STEPS = 1000000
+MAX_VALIDATION_EPISODES = 600
 
 CHECKPOINT_EVERY_STEP = 50000
 VALIDATION_EVERY_STEP = 30000 # 30000
-WEIGHT_VISUALIZE_STEP = 10000 # 30000
-GRAPH_VISUALIZE_STEP = 5000
+WEIGHT_VISUALIZE_STEP = 50000
 
 loss_v = None
 load_net = False
 load_fileName = "checkpoint-1700000.data"
-saves_path = "../checkpoint/10"
+saves_path = "../checkpoint/11"
 
 if __name__ == "__main__":
 
     device = torch.device("cuda")
 
-    # define the writer
-    writer = SummaryWriter(comment="CMK Test")
-
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
-        path="../data/10",
+        path="../data/11",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
         trend_names=['bollinger_bands', 'MACD', 'RSI'], status_names=[])
 
@@ -73,7 +70,6 @@ if __name__ == "__main__":
         net.load_state_dict(checkpoint['state_dict'])
 
     tgt_net = ptan.agent.TargetNet(net)
-    net.writer = writer
 
     # create buffer
     selector = ptan.actions.EpsilonGreedyActionSelector(EPSILON_START)
@@ -95,7 +91,7 @@ if __name__ == "__main__":
     eval_states = None
     best_mean_val = None
 
-    # common.output_graph(net, env, writer)
+    writer = SummaryWriter(comment="0005_testing")
     loss_tracker = common.lossTracker(writer, group_losses=100)
     with common.RewardTracker(writer, np.inf, group_rewards=100) as reward_tracker:
         while True:
@@ -134,13 +130,15 @@ if __name__ == "__main__":
                 with open(os.path.join(saves_path,"checkpoint-%d.data" % step_idx), "wb") as f:
                     torch.save(checkpoint, f)
 
-            if step_idx % GRAPH_VISUALIZE_STEP == 0:
-                net.addGraph = True
-
             if step_idx % VALIDATION_EVERY_STEP == 0:
                 net_processor.eval_mode(batch_size=1)
-                res = validation.validation_run(env_val, net, device=device)
-                for key, val in res.items():
-                    writer.add_scalar(key + "_val", val, step_idx)
+                validation_episodes = min(np.int((1/1800)*step_idx + 100), MAX_VALIDATION_EPISODES)
+                writer.add_scalar("validation_episodes", validation_episodes, step_idx)
 
-            #if step_idx % WEIGHT_VISUALIZE_STEP == 0:
+                val_epsilon = max(0, EPSILON_START - step_idx * 1.25 / EPSILON_STEPS)
+                stats = validation.validation_run(env_val, net, episodes=validation_episodes, epsilon=val_epsilon)
+                common.valid_result_visualize(stats, writer, step_idx)
+
+            if step_idx % WEIGHT_VISUALIZE_STEP == 0:
+                net_processor.eval_mode(batch_size=1)
+                common.weight_visualize(net, writer)

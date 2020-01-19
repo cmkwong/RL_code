@@ -5,13 +5,14 @@ import torch
 from lib import environ
 
 
-def validation_run(env, net, episodes=1000, device="cpu", epsilon=0.02, comission=0.1):
+def validation_run(env, net, episodes=1000, epsilon=0.02, comission=0.1):
     stats = {
         'episode_reward': [],
         'episode_steps': [],
         'order_profits': [],
-        'order_steps': [],
+        'order_steps': []
     }
+    res = {}
 
     for episode in range(episodes):
         obs = env.reset()
@@ -26,6 +27,8 @@ def validation_run(env, net, episodes=1000, device="cpu", epsilon=0.02, comissio
             out_v = net(obs_v)
 
             action_idx = out_v.max(dim=1)[1].item()
+            if np.random.random() < epsilon:
+                action_idx = env.action_space.sample()
             action = environ.Actions(action_idx)
 
             close_price = env._state._data['close'][env._state._offset] # base_offset = 8308
@@ -57,4 +60,5 @@ def validation_run(env, net, episodes=1000, device="cpu", epsilon=0.02, comissio
         stats['episode_reward'].append(total_reward)
         stats['episode_steps'].append(episode_steps)
 
-    return { key: np.mean(vals) for key, vals in stats.items() }
+    return stats
+
