@@ -41,7 +41,7 @@ WEIGHT_VISUALIZE_STEP = 50000
 loss_v = None
 load_net = False
 load_fileName = "checkpoint-1700000.data"
-saves_path = "../checkpoint/11"
+saves_path = "../checkpoint/12"
 
 if __name__ == "__main__":
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     # create the training, val set, trend_set, status_dicts
     train_set, val_set, extra_set = data.read_bundle_csv(
-        path="../data/11",
+        path="../data/12",
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
         trend_names=['bollinger_bands', 'MACD', 'RSI'], status_names=[])
 
@@ -59,13 +59,13 @@ if __name__ == "__main__":
     # env_val = wrappers.TimeLimit(env_val, max_episode_steps=1000)
 
     # create neural network
-    net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
+    net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.2, fc_drop_prob=0.2, actions_n=3,
                  train_on_gpu=True, batch_first=True, status_size=env.status_shape[1]).to(device)
     # load the network
     if load_net is True:
         with open(os.path.join(saves_path, load_fileName), "rb") as f:
             checkpoint = torch.load(f)
-        net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.5, fc_drop_prob=0.2, actions_n=3,
+        net = models.SimpleLSTM(input_size=env.data_shape[1], n_hidden=512, n_layers=2, rnn_drop_prob=0.2, fc_drop_prob=0.2, actions_n=3,
                                 train_on_gpu=True, batch_first=True, status_size=env.status_shape[1]).to(device)
         net.load_state_dict(checkpoint['state_dict'])
 
