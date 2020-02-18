@@ -3,7 +3,6 @@ import os
 from gym import wrappers
 import ptan
 import numpy as np
-
 import torch
 import torch.optim as optim
 
@@ -11,8 +10,14 @@ from lib import environ, data, models, common, validation
 
 from torch.utils.tensorboard import SummaryWriter
 
+from datetime import datetime
+
+# get the now time
+now = datetime.now()
+dt_string = now.strftime("%y%m%d_%H%M%S")
+
 BATCH_SIZE = 32
-BARS_COUNT = 40
+BARS_COUNT = 60
 TARGET_NET_SYNC = 1000
 TRAINING_DATA = ""
 VAL_DATA = ""
@@ -39,9 +44,9 @@ VALIDATION_EVERY_STEP = 30000 # 30000
 WEIGHT_VISUALIZE_STEP = 50000
 
 loss_v = None
-load_net = False
+load_net = True
 TRAIN_ON_GPU = True
-load_fileName = "checkpoint-1700000.data"
+load_fileName = "checkpoint-700000.data"
 saves_path = "../checkpoint/13"
 
 if __name__ == "__main__":
@@ -97,7 +102,7 @@ if __name__ == "__main__":
     eval_states = None
     best_mean_val = None
 
-    writer = SummaryWriter(comment="0005_testing")
+    writer = SummaryWriter(log_dir="../runs/" + dt_string, comment="0005_testing")
     loss_tracker = common.lossTracker(writer, group_losses=100)
     with common.RewardTracker(writer, np.inf, group_rewards=100) as reward_tracker:
         while True:
