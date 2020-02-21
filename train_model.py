@@ -17,7 +17,7 @@ now = datetime.now()
 dt_string = now.strftime("%y%m%d_%H%M%S")
 
 BATCH_SIZE = 32
-BARS_COUNT = 60
+BARS_COUNT = 20
 TARGET_NET_SYNC = 1000
 TRAINING_DATA = ""
 VAL_DATA = ""
@@ -44,7 +44,7 @@ VALIDATION_EVERY_STEP = 30000 # 30000
 WEIGHT_VISUALIZE_STEP = 50000
 
 loss_v = None
-load_net = True
+load_net = False
 TRAIN_ON_GPU = True
 load_fileName = "checkpoint-700000.data"
 saves_path = "../checkpoint/13"
