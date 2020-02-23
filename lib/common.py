@@ -173,10 +173,59 @@ def valid_result_visualize(stats=None, writer=None, step_idx=None):
             writer.add_scalar(key + "_std_val", std_value, step_idx)
             if (key == 'order_profits') or (key == 'episode_reward'):
                 writer.add_histogram(key + "dist_val", np.array(vals))
+
+            # calculate the quarter q1, q2, q3
+            if key == 'order_profits':
+                plot_name = "quarter_" + key + "_val"
+                quarter = {}
+                for q_value in range(0, 110, 10):
+                    n = str(q_value) + "%"
+                    quarter[n] = np.percentile(a=vals, q=q_value)
+                writer.add_scalars(plot_name, quarter, step_idx)
+            if key == 'episode_reward':
+                plot_name = "quarter_" + key + "_val"
+                quarter = {}
+                for q_value in range(0, 110, 10):
+                    n = str(q_value) + "%"
+                    quarter[n] = np.percentile(a=vals, q=q_value)
+                writer.add_scalars(plot_name, quarter, step_idx)
+
+            '''
+            if key == 'order_profits':
+                plot_name = "quarter_" + key + "_val"
+                quarter = []
+                for q_value in range(0, 120, 20):
+                    n = str(q_value) + "%"
+                    quarter.append(np.percentile(a=vals, q=q_value))
+                writer.add_figure(tag=plot_name, figure=quarter, global_step=step_idx)
+            if key == 'episode_reward':
+                plot_name = "quarter_" + key + "_val"
+                quarter = []
+                for q_value in range(0, 120, 20):
+                    n = str(q_value) + "%"
+                    quarter.append(np.percentile(a=vals, q=q_value))
+                writer.add_figure(tag=plot_name, figure=quarter, global_step=step_idx)
+            '''
         else:
             writer.add_scalar(key + "_val", 0, step_idx)
             writer.add_scalar(key + "_std_val", 0, step_idx)
             if (key == 'order_profits') or (key == 'episode_reward'):
                 writer.add_histogram(key + "_val", 0)
-
+            '''
+            # calculate the quarter q1, q2, q3
+            if key == 'order_profits':
+                plot_name = "quarter_" + key + "_val"
+                quarter = {}
+                for q_value in range(0, 120, 20):
+                    n = str(q_value * 10) + "%"
+                    quarter[n] = np.percentile(a=0, q=q_value)
+                writer.add_scalars(plot_name, quarter, step_idx)
+            if key == 'episode_reward':
+                plot_name = "quarter_" + key + "_val"
+                quarter = {}
+                for q_value in range(0, 120, 20):
+                    n = str(q_value * 10) + "%"
+                    quarter[n] = np.percentile(a=0, q=q_value)
+                writer.add_scalars(plot_name, quarter, step_idx)
+            '''
     # output the reward distribution to the writer
