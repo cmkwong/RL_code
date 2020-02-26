@@ -17,7 +17,7 @@ now = datetime.now()
 dt_string = now.strftime("%y%m%d_%H%M%S")
 
 BATCH_SIZE = 32
-BARS_COUNT = 10
+BARS_COUNT = 20
 TARGET_NET_SYNC = 1000
 TRAINING_DATA = ""
 VAL_DATA = ""
