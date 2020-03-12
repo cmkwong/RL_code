@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from lib import environ, data, models, common, validation
+from .lib import environ, data, models, common, validation
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
             step_idx += 1
             net_processor.populate_mode(batch_size=1)
             buffer.populate(1)
-            selector.epsilon = max(EPSILON_STOP, EPSILON_START - step_idx*1.25 / EPSILON_STEPS)
+            selector.epsilon = max(EPSILON_STOP, EPSILON_START - step_idx*0.75 / EPSILON_STEPS)
 
             new_rewards = exp_source.pop_rewards_steps()
             if new_rewards:
