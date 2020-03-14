@@ -28,18 +28,20 @@ class csv_reader:
             if '<OPEN>' not in h and sep == ',':
                 return self.read_csv(file_name, ';')
             indices = [h.index(s) for s in ('<OPEN>', '<HIGH>', '<LOW>', '<CLOSE>', '<TICKVOL>')]
-            o, h, l, c, v = [], [], [], [], []
+            date_list, o, h, l, c, v = [], [], [], [], [], []
             count_out = 0
             count_filter = 0
             count_fixed = 0
             prev_vals = None
             for row in reader:
-                vals = list(map(float_available, [row[idx] for idx in indices]))
+                vals = [row[0]]
+                row_data = list(map(float_available, [row[idx] for idx in indices]))
+                vals.extend(row_data)
                 if filter_data and ((vals[-1] < (1e-8))): # filter out the day when no volume
                     count_filter += 1
                     continue
 
-                po, ph, pl, pc, pv = vals
+                date, po, ph, pl, pc, pv = vals
 
                 # fix open price for current bar to match close price for the previous bar
                 if fix_open_price and prev_vals is not None:
@@ -50,6 +52,7 @@ class csv_reader:
                         pl = min(pl, po)
                         ph = max(ph, po)
                 count_out += 1
+                date_list.append(date)
                 o.append(po)
                 c.append(pc)
                 h.append(ph)
@@ -68,7 +71,7 @@ class csv_reader:
         data['low'] = np.array(l, dtype=np.float64)
         data['close'] = np.array(c, dtype=np.float64)
         data['volume'] = np.array(v, dtype=np.float64)
-        return data
+        return date_list, data
 
 class SimpleSpliter:
     def __init__(self):
@@ -118,7 +121,7 @@ def addition_indicators(prices, trend_names, status_names):
                 status_indicators[status_name] = indicators.RSI(prices, period=14)
     return trend_indicators, status_indicators
 
-def data_regularize(prices, spliter, trend_indicators, status_indicators, percentage):
+def data_regularize(prices, trend_indicators, status_indicators):
     assert(isinstance(prices, dict))
     assert (isinstance(trend_indicators, dict))
     assert (isinstance(status_indicators, dict))
@@ -133,37 +136,44 @@ def data_regularize(prices, spliter, trend_indicators, status_indicators, percen
         status_indicators[key].cal_data()
         required_data = status_indicators[key].getData()
         prices.update(required_data)
-    train_set, test_set = spliter.split_data(prices, percentage=percentage)
+    return prices
+
+def update_cutoff(trend_indicators, status_indicators, offset):
     # update the cutoff offset for each indicators
     for key in list(trend_indicators.keys()):
-        trend_indicators[key].cutoff = spliter.offset
+        trend_indicators[key].cutoff = offset
     for key in list(status_indicators.keys()):
-        status_indicators[key].cutoff = spliter.offset
-    return train_set, test_set
+        status_indicators[key].cutoff = offset
 
-def read_bundle_csv(path, sep=',', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=False, trend_names=[], status_names=[]):
+def read_bundle_csv(path, sep=',', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=False, trend_names=None, status_names=None):
     reader = csv_reader()
     spliter = SimpleSpliter()
     train_set = {}
     test_set = {}
+    train_date = {}
+    test_date = {}
     extra_set = {}
     file_list = os.listdir(path)
     for file_name in file_list:
         indicator_dicts = {} # extra_set = {"0005.HK": {"trend", "status"}, "0011.HK": {"trend", "status"}, ...}
         required_path = path + "/" + file_name
-        prices = reader.read_csv(required_path, sep=sep, filter_data=filter_data, fix_open_price=fix_open_price)
+        dates, prices = reader.read_csv(required_path, sep=sep, filter_data=filter_data, fix_open_price=fix_open_price)
         if extra_indicator:
             indicator_dicts['trend'], indicator_dicts['status'] = addition_indicators(prices, trend_names, status_names)
             extra_set[file_name] = indicator_dicts
             # data regularize
-            train_set_, test_set_ = data_regularize(prices, spliter, indicator_dicts['trend'], indicator_dicts['status'], percentage=percentage)
+            prices_ = data_regularize(prices, indicator_dicts['trend'], indicator_dicts['status'])
+            train_set_, test_set_ = spliter.split_data(prices_, percentage=percentage)
+            update_cutoff(indicator_dicts['trend'], indicator_dicts['status'], spliter.offset)
         else:
             train_set_, test_set_ = spliter.split_data(prices, percentage=percentage)
         train_set[file_name] = train_set_
         test_set[file_name] = test_set_
+        train_date[file_name], test_date[file_name] = dates[:spliter.offset], dates[spliter.offset:]
+
     print("Totally, read done, got %d rows, %d filtered, %d open prices adjusted" % (
         reader.total_count_filter + reader.total_count_out, reader.total_count_filter, reader.total_count_fixed))
     print("The whole data set size for training: %d and for evaluation: %d" %(
         spliter.trainSet_size, spliter.testSet_size))
 
-    return train_set, test_set, extra_set
+    return train_set, test_set, train_date, test_date, extra_set

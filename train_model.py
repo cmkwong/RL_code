@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from .lib import environ, data, models, common, validation
+from lib import environ, data, models, common, validation
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -41,13 +41,14 @@ MAX_VALIDATION_EPISODES = 600
 
 CHECKPOINT_EVERY_STEP = 50000
 VALIDATION_EVERY_STEP = 30000 # 30000
-WEIGHT_VISUALIZE_STEP = 30000
+WEIGHT_VISUALIZE_STEP = 50000
 
 loss_v = None
-load_net = False
+load_net = True
 TRAIN_ON_GPU = True
-load_fileName = "checkpoint-700000.data"
-saves_path = "../checkpoint/13"
+load_fileName = "checkpoint-1100000.data"
+saves_path = "../checkpoint/14"
+load_path = "../data/14"
 
 if __name__ == "__main__":
 
@@ -57,14 +58,14 @@ if __name__ == "__main__":
         device = torch.device("cpu")
 
     # create the training, val set, trend_set, status_dicts
-    train_set, val_set, extra_set = data.read_bundle_csv(
-        path="../data/13",
+    train_set, val_set, train_date, val_date, extra_set = data.read_bundle_csv(
+        path=load_path,
         sep='\t', filter_data=True, fix_open_price=False, percentage=0.8, extra_indicator=True,
         trend_names=['bollinger_bands', 'MACD', 'RSI'], status_names=[])
 
-    env = environ.StocksEnv(train_set, extra_set, bars_count=BARS_COUNT, reset_on_close=True, random_ofs_on_reset=True, volumes=False, train_mode=True)
+    env = environ.StocksEnv(train_set, train_date, extra_set, bars_count=BARS_COUNT, reset_on_close=True, random_ofs_on_reset=True, volumes=False, train_mode=True)
     env = wrappers.TimeLimit(env, max_episode_steps=1000)
-    env_val = environ.StocksEnv(val_set, extra_set, bars_count=BARS_COUNT, reset_on_close=True, random_ofs_on_reset=True, volumes=False, train_mode=False)
+    env_val = environ.StocksEnv(val_set, val_date, extra_set, bars_count=BARS_COUNT, reset_on_close=True, random_ofs_on_reset=True, volumes=False, train_mode=False)
     # env_val = wrappers.TimeLimit(env_val, max_episode_steps=1000)
 
     # create neural network
@@ -109,7 +110,7 @@ if __name__ == "__main__":
             step_idx += 1
             net_processor.populate_mode(batch_size=1)
             buffer.populate(1)
-            selector.epsilon = max(EPSILON_STOP, EPSILON_START - step_idx*0.75 / EPSILON_STEPS)
+            selector.epsilon = max(EPSILON_STOP, EPSILON_START - step_idx*1.25 / EPSILON_STEPS)
 
             new_rewards = exp_source.pop_rewards_steps()
             if new_rewards:
@@ -147,7 +148,8 @@ if __name__ == "__main__":
                 writer.add_scalar("validation_episodes", validation_episodes, step_idx)
 
                 val_epsilon = max(0, EPSILON_START - step_idx * 1.25 / EPSILON_STEPS)
-                stats = validation.validation_run(env_val, net, episodes=validation_episodes, epsilon=val_epsilon)
+                stats = validation.validation_run(env_val, net, episodes=validation_episodes,
+                                                  load_path=saves_path, step_idx=step_idx, epsilon=val_epsilon)
                 common.valid_result_visualize(stats, writer, step_idx)
 
             if step_idx % WEIGHT_VISUALIZE_STEP == 0:

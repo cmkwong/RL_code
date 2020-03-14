@@ -32,12 +32,13 @@ class State:
         self.volumes = volumes
         self.train_mode = train_mode
 
-    def reset(self, data, extra_set, offset):
+    def reset(self, data, date, extra_set, offset):
         assert isinstance(data, dict)
         assert offset >= self.bars_count - 1
         self.have_position = False
         self.open_price = 0.0
         self._data = data
+        self._date = date
         self._extra_set = extra_set     # empty if {}
         self.extra_indicator = False
         self._offset = offset
@@ -188,11 +189,12 @@ class State:
 class StocksEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, data, extra_set, bars_count=DEFAULT_BARS_COUNT,
+    def __init__(self, data, date, extra_set, bars_count=DEFAULT_BARS_COUNT,
                  commission=DEFAULT_COMMISSION_PERC, reset_on_close=True,
                  random_ofs_on_reset=True, reward_on_close=False, volumes=False, train_mode=True):
         assert isinstance(data, dict)
         self.universe_data = data
+        self.universe_date = date
         self.universe_extra_set = extra_set # empty dict if there is no extra data
         self._state = State(bars_count, commission, reset_on_close, reward_on_close=reward_on_close, volumes=volumes, train_mode=train_mode)
         self.random_ofs_on_reset = random_ofs_on_reset
@@ -242,11 +244,12 @@ class StocksEnv(gym.Env):
         # make selection of the instrument and it's offset. Then reset the state
         self._instrument = self.np_random.choice(list(self.universe_data.keys()))
         data = self.universe_data[self._instrument]
+        date = self.universe_date[self._instrument]
         extra_set_ = {}
         if len(self.universe_extra_set) is not 0:
             extra_set_ = self.universe_extra_set[self._instrument]
         offset = self.offset_modify(data, extra_set_, self.train_mode) # train_mode=False, random offset is different
-        self._state.reset(data, extra_set_, offset)
+        self._state.reset(data, date, extra_set_, offset)
         return self._state.encode()
 
     def step(self, action_idx):
